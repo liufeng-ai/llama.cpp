@@ -1,18 +1,13 @@
 name: CI (CUDA, windows)
 
-# TODO: this workflow is only triggered manually because it is very heavy on the CI
-#       when we provision dedicated windows runners, we can enable it for pushes too
-# note: running this workflow manually will populate the ccache for the release builds
-#       this can be used before merging a PR to speed up the release workflow
 on:
-  workflow_dispatch: # allows manual triggering
+  workflow_dispatch:
 
 cache-mode: write
 permissions:
   actions: write
   contents: read
 
-# note: this will run in queue with the release workflow
 concurrency:
   group: release
   queue: max
@@ -36,7 +31,6 @@ jobs:
     strategy:
       matrix:
         include:
-          # CTK >= 13.5 bundles CCCL >= 3.5; omit GGML_CUDA_CCCL_VERSION for those versions.
           - cuda: '12.4'
             arch: x64
             defines: '-DGGML_CUDA_CCCL_VERSION=v3.4.3 -DCMAKE_CUDA_ARCHITECTURES=60'
@@ -49,7 +43,7 @@ jobs:
       - name: ccache
         uses: ggml-org/ccache-action@v1.2.24
         with:
-          key: release-windows-2022-${{ matrix.arch }}-cuda-${{ matrix.cuda }}
+          key: release-windows-2022-${{ matrix.arch }}-cuda-${{ matrix.cuda }}-p100-v2
 
       - name: Install Cuda Toolkit
         uses: ./.github/actions/windows-setup-cuda
@@ -70,7 +64,6 @@ jobs:
           cmake -S . -B build -G "Ninja Multi-Config" ^
             -DGGML_BACKEND_DL=ON ^
             -DGGML_NATIVE=OFF ^
-            -DGGML_CPU=OFF ^
             -DGGML_CUDA=ON ^
             -DGGML_CUDA_FA_QUANTS=all ^
             -DGGML_CUDA_NCCL=OFF ^
@@ -79,15 +72,14 @@ jobs:
             ${{ matrix.defines }}
           set /A NINJA_JOBS=%NUMBER_OF_PROCESSORS%-1
           cmake --build build --config Release -j %NINJA_JOBS%
-
       - name: ccache-clear
         uses: ./.github/actions/ccache-clear
         with:
-          key: release-windows-2022-${{ matrix.arch }}-cuda-${{ matrix.cuda }}
+          key: release-windows-2022-${{ matrix.arch }}-cuda-${{ matrix.cuda }}-p100-v2
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: llama-p100-cuda-${{ matrix.cuda }}-${{ matrix.arch }}
+          name: llama-p100-cuda-${{ matrix.cuda }}-${{ matrix.arch }}-v2
           path: build/bin/Release/
           if-no-files-found: error
